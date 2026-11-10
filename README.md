@@ -262,6 +262,8 @@ MongoDB database `saathi`. No schema is enforced by the database; the shape belo
 | `ALLOWED_ORIGINS` | same host only | Comma-separated extra origins |
 | `LAST_CALL_DAYS` | `30` | How old a saved plan may be to be recalled |
 | `VAD_SILENCE_MS` | `600` | Silence before the model answers |
+| `TRUST_PROXY` | off | Set to `1` behind a reverse proxy (Render). Per-IP limits then use the last `X-Forwarded-For` address instead of the proxy's |
+| `KEEPALIVE_UNTIL` | off | ISO date. On a free host that sleeps, the server pings its own `/health` every 10 minutes until this date, then stops. Uses `RENDER_EXTERNAL_URL` (set by Render) or `PUBLIC_URL` |
 | `RATE_TEXT_IN/OUT`, `RATE_AUDIO_IN/OUT`, `USD_INR` | placeholders | Cost-estimate rates (USD per 1M tokens) |
 
 ---

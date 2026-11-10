@@ -1,5 +1,6 @@
 // Browser <-> this server (WebSocket, PCM audio as base64 JSON) <-> Gemini Live.
 // Server owns the API key, the DB and the tools; the browser only moves audio.
+import { clientIp } from './ip.js';
 import { buckets, estimate, maxMerge, ZERO } from './cost.js';
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -12,6 +13,7 @@ import { queue } from './cases.js';
 import { ensureCases, touchCase, runSimulation, resetDemo } from './store.js';
 
 const { GEMINI_API_KEY, MONGODB_URI, PORT = 3000 } = process.env;
+const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-live';
 const num = (k, d) => Number(process.env[k]) || d;
 const MAX_CALLS = num('MAX_CALLS', 4);
@@ -116,7 +118,7 @@ wss.on('connection', async (ws, req) => {
     try { host = new URL(origin).host; } catch { /* bad origin */ }
     if (host !== req.headers.host) return reject(1008, 'Origin not allowed');
   }
-  const ip = req.socket.remoteAddress;
+  const ip = clientIp(req, TRUST_PROXY);
   const now = Date.now();
   let h = hits.get(ip);
   if (!h || h.reset < now) hits.set(ip, (h = { n: 0, reset: now + 60000 }));
@@ -286,6 +288,15 @@ wss.on('connection', async (ws, req) => {
     reject(1011, 'Service temporarily unavailable');
   }
 });
+
+// Keep-alive for free hosts that sleep after ~15 min idle. Pings our own public URL until KEEPALIVE_UNTIL (ISO date), then stops,
+// so it cannot burn the monthly free hours. It cannot wake a sleeping server; the first visit after a sleep still waits.
+const KEEPALIVE_UNTIL = Date.parse(process.env.KEEPALIVE_UNTIL ?? '');
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_URL;
+if (SELF_URL && KEEPALIVE_UNTIL > Date.now()) {
+  setInterval(() => { if (Date.now() < KEEPALIVE_UNTIL) fetch(`${SELF_URL}/health`).catch(() => {}); }, 10 * 60_000).unref();
+  console.log(`keep-alive on until ${new Date(KEEPALIVE_UNTIL).toISOString()}`);
+}
 
 server.listen(PORT, () => console.log(`Saathi on http://localhost:${PORT}  (model ${MODEL})`));
 
