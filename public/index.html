@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Saathi Voice KAM</title>
+<style>
+  :root { --bg:#0b0f14; --card:#131a22; --line:#243040; --ink:#e8eef5; --mute:#9aa7b8; --acc:#3ddc97; --acc-d:#1e9e6a; --bad:#ff8a8f; --end:#e5484d; --hot:#3b2a12; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; color:var(--ink); font:16px/1.5 Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; background:radial-gradient(900px 520px at 50% 22%, #12301f 0%, var(--bg) 62%) no-repeat, var(--bg); }
+  main { max-width:1240px; min-height:100vh; margin:0 auto; padding:24px 24px 40px; display:flex; flex-direction:column; gap:24px; }
+  .wrap { flex:1; }
+  .try { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; max-width:680px; }
+  .try b { flex-basis:100%; font-size:.75rem; letter-spacing:.08em; text-transform:uppercase; color:var(--mute); font-weight:600; }
+  .try span { padding:8px 14px; border:1px solid var(--line); border-radius:99px; background:var(--card); color:var(--ink); font-size:.9rem; }
+  header { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  h1 { margin:0; font-size:1.4rem; letter-spacing:.01em; } h2 { margin:0 0 10px; font-size:.8rem; letter-spacing:.08em; text-transform:uppercase; color:var(--mute); }
+  .sub, #who { color:var(--mute); font-size:.85rem; margin:0; } .grow { flex-grow:1; }
+  #state { padding:4px 12px; border-radius:99px; background:var(--line); font-size:.8rem; font-weight:600; }
+  #state[data-s=listening] { background:#12301f; color:var(--acc); } #state[data-s=speaking] { background:#3ddc97; color:#06241a; }
+  #cost { color:var(--mute); font-size:.8rem; margin:0; font-variant-numeric:tabular-nums; }
+
+  .wrap { display:flex; flex-wrap:wrap; gap:32px; align-items:stretch; }
+  .voice { flex:1.4 1 520px; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; text-align:center; padding:16px 0; }
+  .side { flex:1 1 380px; min-width:0; display:flex; flex-direction:column; gap:16px; }
+
+  #orb { position:relative; width:clamp(220px, 34vh, 360px); aspect-ratio:1; display:flex; align-items:center; justify-content:center; }
+  #orb i { position:absolute; border-radius:50%; border:1px solid #2a6b49; }
+  #orb i:nth-child(1) { inset:0; border-color:#1e4a33; } #orb i:nth-child(2) { inset:10%; } #orb i:nth-child(3) { inset:20%; border-color:var(--acc); opacity:.7; }
+  #orb b { display:flex; align-items:center; justify-content:center; gap:5px; width:104px; height:104px; border-radius:50%; background:linear-gradient(145deg, var(--acc), var(--acc-d)); box-shadow:0 0 50px #3ddc9755; opacity:.45; transition:opacity .3s; }
+  #orb b span { width:6px; height:22px; border-radius:3px; background:#06241a; }
+  #orb[data-s=listening] b, #orb[data-s=speaking] b { opacity:1; }
+  #orb[data-s=listening] i:nth-child(3) { animation:pulse 2.4s ease-in-out infinite; }
+  /* --lvl (0..1) is the live loudness of Saathi's voice, set from app.js, so the orb pulses with the speech */
+  #orb b { transform:scale(calc(1 + var(--lvl, 0) * .45)); transition:transform .06s linear, opacity .3s; }
+  #orb i:nth-child(3) { transform:scale(calc(1 + var(--lvl, 0) * .32)); }
+  #orb i:nth-child(2) { transform:scale(calc(1 + var(--lvl, 0) * .2)); }
+  #orb i:nth-child(1) { transform:scale(calc(1 + var(--lvl, 0) * .1)); }
+  #orb[data-s=speaking] b { box-shadow:0 0 calc(50px + var(--lvl, 0) * 90px) #3ddc9788; }
+  #orb[data-s=speaking] b span { animation:bar .7s ease-in-out infinite alternate; }
+  #orb b span:nth-child(2) { animation-delay:.12s; } #orb b span:nth-child(3) { animation-delay:.24s; } #orb b span:nth-child(4) { animation-delay:.36s; } #orb b span:nth-child(5) { animation-delay:.48s; }
+  @keyframes pulse { 50% { transform:scale(1.06); opacity:.4; } } @keyframes bar { to { height:56px; } }
+  @media (prefers-reduced-motion: reduce) { #orb *, #orb { animation:none !important; transform:none !important; } }
+
+  #cap-label { font-size:.8rem; letter-spacing:.12em; text-transform:uppercase; color:var(--acc); font-weight:600; min-height:1.2em; }
+  #cap { margin:0; max-width:640px; font-size:1.75rem; line-height:1.35; font-weight:500; letter-spacing:-.01em; min-height:3em; }
+  .bar { display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:center; }
+  select, button { font:inherit; min-height:48px; padding:0 22px; border-radius:26px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
+  select { border-radius:12px; padding:0 12px; max-width:100%; }
+  button { cursor:pointer; font-weight:600; } button:disabled { opacity:.45; cursor:not-allowed; }
+  #call { background:var(--ink); border-color:var(--ink); color:#0b0f14; } #end { background:var(--end); border-color:var(--end); color:#fff; }
+  button:focus-visible, select:focus-visible { outline:3px solid #7cb2ff; outline-offset:2px; }
+  #msg { margin:0; color:#ffb4b8; min-height:1.5em; }
+
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; }
+  table { width:100%; border-collapse:collapse; font-size:.9rem; } th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); } th { color:var(--mute); font-weight:500; font-size:.75rem; }
+  td + td, th + th { text-align:right; font-variant-numeric:tabular-nums; }
+  tr.hot td { background:var(--hot); color:#ffd9a0; font-weight:600; }
+  #log { max-height:300px; overflow:auto; display:grid; gap:8px; }
+  #log p { margin:0; font-size:.9rem; padding:8px 12px; border-radius:12px; max-width:92%; }
+  #log p.bot { background:#1b2531; } #log p.user { background:#12301f; color:#c9f5df; justify-self:end; }
+  #log:empty::before { content:"The conversation will appear here."; color:var(--mute); font-size:.9rem; }
+  #plan[hidden] { display:none; } #plan { border-color:var(--acc); } #plan li { margin:6px 0; } #plan p { margin:8px 0 4px; }
+  #copy { min-height:44px; padding:0 16px; border-radius:10px; }
+  details { color:var(--mute); font-size:.85rem; } details ul { margin:6px 0 0; padding-left:18px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Saathi</h1>
+    <p id="who"></p>
+    <span class="grow"></span>
+    <span id="state" data-s="idle" role="status" aria-live="polite">idle</span>
+    <p id="cost" aria-live="off"></p>
+  </header>
+
+  <div class="wrap">
+    <section class="voice" aria-label="Call">
+      <div id="orb" data-s="idle" aria-hidden="true"><i></i><i></i><i></i><b><span></span><span></span><span></span><span></span><span></span></b></div>
+      <div id="cap-label" aria-hidden="true"></div>
+      <p id="cap">Pick a seller and press Call. Talk like a real call, and use headphones to avoid echo.</p>
+      <div class="bar">
+        <label for="seller" class="sub">Seller</label>
+        <select id="seller"></select>
+        <button id="call" type="button">Call your KAM</button>
+        <button id="end" type="button" disabled>End call</button>
+      </div>
+      <p id="msg" role="alert"></p>
+      <div class="try" aria-label="Things to ask">
+        <b>Try asking</b>
+        <span>Why did my sales drop?</span><span>Which products should I restock first?</span><span>How much did I lose?</span>
+        <span>What should I do this week?</span><span>Mere orders itne kam kyun ho gaye?</span><span>Make me an action plan</span>
+      </div>
+    </section>
+
+    <div class="side">
+      <section class="card" aria-label="Seller metrics">
+        <h2>Metrics</h2>
+        <table>
+          <thead><tr><th>Metric</th><th>Last month</th><th>This month</th></tr></thead>
+          <tbody id="metrics"></tbody>
+        </table>
+        <details><summary>Assumptions (mock data)</summary><ul id="assumptions"></ul></details>
+      </section>
+      <section class="card" aria-label="Conversation">
+        <h2>Conversation</h2>
+        <div id="log" aria-live="polite"></div>
+      </section>
+      <section id="plan" class="card" hidden aria-label="Action plan">
+        <h2>Your action plan</h2>
+        <div id="planBody"></div>
+        <button id="copy" type="button">Copy plan</button>
+      </section>
+    </div>
+  </div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

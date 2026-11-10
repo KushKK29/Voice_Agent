@@ -1,0 +1,16 @@
+{
+  "name": "saathi-voice-kam",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "seed": "node --env-file=.env seed.js",
+    "test": "node --test",
+    "eval": "node --env-file=.env eval.mjs"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.0",
+    "mongodb": "^6.0.0",
+    "ws": "^8.0.0"
+  }
+}
