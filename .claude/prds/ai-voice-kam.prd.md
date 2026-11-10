@@ -517,5 +517,11 @@ README.md         # run steps, architecture, assumptions
 - Prompt, tools and data moved to `kam.js` (shared by server and eval). New `eval.mjs`: 33 evaluator-style questions, rule-graded. Result on a small text model (`gemini-3.1-flash-lite`): pass@1 31/33, pass@2 33/33 (pass^2 29/33). Iterating on this found real defects: asking permission instead of answering, over-long answers, inventing numbers when skipping tools, Devanagari Hindi.
 - Cancellation-reason split removed from the mock data (the brief gives none).
 
+**v2.4 — ownership layer (reviewer brief: own the seller's problem, drive the next action).** Detailed requirements: `saathi-ownership-layer.prd.md`.
+- Added: attention queue ranked by delivered value lost, a case ledger in Mongo (`cases`, `outcomes`), outbound and follow-up call modes that dial automatically, an approved demo restock action, and a labelled "Simulate +7 days" outcome.
+- Both actions are code-gated: `raise_restock_request` needs a clear yes (`isApproval`), `escalate_to_human` needs the seller to ask for it or agree. Found in manual testing: the model claimed a manager was requested after only noise from the seller; fixed with a code gate and a test.
+- Fixed in testing: "please raise a request" was not recognised as a yes; the action card listed 5 items while Saathi said 3.
+- Known limits: the +7-day numbers are scripted, the follow-up is a button, no eval cases yet for the new modes, voice path not re-verified end to end.
+
 ---
-*Status: DRAFT v2.3 — reviewed, MVP implemented, full-coverage eval passing. Next: build M1 → M3, then P1 in ICE order.*
+*Status: DRAFT v2.4 — reviewed, MVP and ownership layer implemented; eval to be re-run for the new modes. Next: build M1 → M3, then P1 in ICE order.*
