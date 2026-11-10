@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Saathi Attention Queue</title>
+<style>
+  :root { --bg:#0b0f14; --card:#131a22; --line:#243040; --ink:#e8eef5; --mute:#9aa7b8; --acc:#3ddc97; --bad:#ff8a8f; --warn:#ffd9a0; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; color:var(--ink); font:16px/1.5 Inter, system-ui, -apple-system, 'Segoe UI', sans-serif; background:radial-gradient(900px 480px at 50% 0%, #12301f 0%, var(--bg) 62%) no-repeat, var(--bg); }
+  main { max-width:1240px; margin:0 auto; padding:24px; display:flex; flex-direction:column; gap:20px; }
+  header { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  h1 { margin:0; font-size:1.4rem; } .sub { color:var(--mute); font-size:.9rem; margin:0; } .grow { flex-grow:1; }
+  a, button { font:inherit; } a.btn, button { display:inline-flex; align-items:center; min-height:44px; padding:0 18px; border-radius:22px; border:1px solid var(--line); background:var(--card); color:var(--ink); font-weight:600; font-size:.9rem; text-decoration:none; cursor:pointer; }
+  a.primary { background:var(--ink); color:#0b0f14; border-color:var(--ink); } button:disabled { opacity:.5; cursor:wait; }
+  a:focus-visible, button:focus-visible, summary:focus-visible { outline:3px solid #7cb2ff; outline-offset:2px; }
+  #rows { display:grid; gap:14px; }
+  .row { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px 20px; display:grid; gap:14px; }
+  .top { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; }
+  .rank { font-size:1.6rem; font-weight:700; color:var(--mute); width:2ch; }
+  .who { flex:1 1 220px; } .who b { font-size:1.05rem; } .who span { display:block; color:var(--mute); font-size:.85rem; }
+  .risk { flex:0 0 150px; } .risk b { font-size:1.4rem; color:var(--bad); font-variant-numeric:tabular-nums; } .risk span { display:block; color:var(--mute); font-size:.8rem; }
+  .why { flex:2 1 320px; font-size:.95rem; } .why .next { margin-top:6px; color:var(--acc); }
+  .chip { display:inline-block; padding:3px 10px; border-radius:99px; font-size:.78rem; font-weight:600; background:var(--line); }
+  .chip.in_progress { background:#12301f; color:var(--acc); } .chip.improving { background:#12301f; color:#9ff0c8; } .chip.escalated { background:#4a1f22; color:#ffb4b8; } .chip.healthy { color:var(--mute); }
+  .acts { display:flex; flex-wrap:wrap; gap:10px; }
+  details { color:var(--mute); font-size:.85rem; } summary { cursor:pointer; padding:6px 0; }
+  .case { border-top:1px solid var(--line); padding:8px 0; } .case b { color:var(--ink); }
+  .case ul { margin:6px 0 0; padding-left:18px; } .case li { margin:2px 0; }
+  #msg { min-height:1.5em; margin:0; color:#ffb4b8; } .demo { font-size:.8rem; color:var(--mute); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Attention queue</h1>
+    <p class="sub">Sellers ranked by delivered value lost this month. Figures are computed in code.</p>
+    <span class="grow"></span>
+    <a class="btn" href="/">Seller call screen</a>
+    <button id="reset" type="button">Reset demo</button>
+  </header>
+  <p id="msg" role="alert"></p>
+  <section id="rows" aria-label="Sellers needing attention"></section>
+  <p class="demo">Demo: "Simulate +7 days" changes the sample data to show what a week later could look like. Everything it produces is simulated and labelled so. Actions the agent takes are demo actions and send nothing real.</p>
+</main>
+<script src="queue.js"></script>
+</body>
+</html>

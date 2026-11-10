@@ -7,6 +7,8 @@ const ROWS = [ // [label, key (matches a finding), formatter]
   ['Average selling price', 'price', (m) => inr(m.asp)],
   ['Out-of-stock products', 'inventory', (m) => m.oos],
 ];
+const Q = new URLSearchParams(location.search);
+const MODE = ['outbound', 'followup'].includes(Q.get('mode')) ? Q.get('mode') : '';
 const GATE = 0.04; // mic loudness (0..1 RMS) needed to count as speech while the bot is talking
 let sellers = [], ws, stream, capCtx, playCtx, sources = [], nextT = 0, planText = '';
 
@@ -52,6 +54,11 @@ function showPlan({ issues = [], actions = [], follow_up_date }) {
   $('plan').hidden = false;
 }
 
+function showAction({ items = [] }) {
+  $('actionList').append(el('li', `Restock request raised for ${items.join(', ')}. Demo action: nothing was sent to a real supplier.`));
+  $('actions').hidden = false;
+}
+
 // --- audio out: queue 24 kHz PCM chunks back-to-back; flush on interruption ---
 function play(b64) {
   const u8 = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -94,7 +101,7 @@ function flush() {
 }
 
 async function start() {
-  $('msg').textContent = ''; $('log').innerHTML = ''; $('cap').textContent = ''; $('plan').hidden = true; $('cost').textContent = ''; highlight([]);
+  $('msg').textContent = ''; $('log').innerHTML = ''; $('cap').textContent = ''; $('actions').hidden = true; $('actionList').replaceChildren(); $('plan').hidden = true; $('cost').textContent = ''; highlight([]);
   $('call').disabled = true; $('seller').disabled = true; setState('connecting');
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } });
@@ -105,12 +112,16 @@ async function start() {
   capCtx = new AudioContext({ sampleRate: 16000 });
   playCtx = new AudioContext({ sampleRate: 24000 });
   await Promise.all([capCtx.resume(), playCtx.resume(), capCtx.audioWorklet.addModule('worklet.js')]);
+  if (playCtx.state !== 'running') { // autostart without a click can be blocked by the browser
+    fail('Browser blocked audio. Press Call to start.');
+    reset(); return setState('idle');
+  }
   analyser = playCtx.createAnalyser();
   analyser.fftSize = 512;
   analyser.connect(playCtx.destination);
   pulse();
 
-  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/call?seller=${$('seller').value}`);
+  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/call?seller=${$('seller').value}${MODE ? `&mode=${MODE}` : ''}`);
   ws.onmessage = (e) => {
     const m = JSON.parse(e.data);
     if (m.t === 'audio') play(m.d);
@@ -118,6 +129,7 @@ async function start() {
     else if (m.t === 'text') addText(m);
     else if (m.t === 'findings') highlight(m.keys);
     else if (m.t === 'plan') showPlan(m.plan);
+    else if (m.t === 'action') showAction(m.action);
     else if (m.t === 'cost') $('cost').textContent = `Est. Rs${m.inr.toFixed(2)} ($${m.usd.toFixed(4)}) · ${m.audio_in + m.audio_out + m.text_in + m.text_out} tokens · free tier bills 0`;
     else if (m.t === 'escalate') fail(`Handed to a human account manager (demo): ${m.topic || 'your request'}`);
     else if (m.t === 'error') fail(m.msg);
@@ -165,5 +177,9 @@ $('copy').onclick = () => navigator.clipboard?.writeText(planText).then(() => { 
 fetch('/api/sellers').then((r) => r.json()).then((list) => {
   sellers = list;
   $('seller').replaceChildren(...list.map((s) => Object.assign(el('option', s.name), { value: s._id })));
+  if (Q.get('seller') && list.some((s) => s._id === Q.get('seller'))) $('seller').value = Q.get('seller');
   renderSeller();
+  if (MODE === 'outbound') $('cap').textContent = 'Outbound call: Saathi will open with this seller\'s open case.';
+  if (MODE === 'followup') $('cap').textContent = 'Follow-up call, 7 days later. The new numbers are simulated.';
+  if (MODE && Q.get('seller') === $('seller').value) start(); // arrived from the queue: dial straight away
 }).catch(() => fail('Could not load sellers. Is the server running and seeded?'));

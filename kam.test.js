@@ -67,6 +67,20 @@ test('escalation is recorded and sent to the UI', () => {
   assert.match(r.status, /human/i);
 });
 
+test('escalate_to_human needs the seller to ask or say yes; noise does not escalate', () => {
+  for (const said of ['या', 'what about stock', 'maybe later', 'no']) {
+    const call = { escalations: [] };
+    const r = makeHandlers(s1, call, () => {}, { lastUser: () => said }).escalate_to_human({ topic: 'other' });
+    assert.equal(r.escalated, false, said);
+    assert.equal(call.escalations.length, 0);
+  }
+  for (const said of ['yes', 'I want to talk to a person', 'my payment is stuck']) {
+    const call = { escalations: [] };
+    makeHandlers(s1, call, () => {}, { lastUser: () => said }).escalate_to_human({ topic: 'other' });
+    assert.equal(call.escalations.length, 1, said);
+  }
+});
+
 test('prompt follows the seller: no hard-coded numbers or causal chain', () => {
   const p1 = systemPrompt(s1, null);
   const p2 = systemPrompt(s2, null);
@@ -169,4 +183,41 @@ test('prompt tells the bot to state known facts instead of asking the seller', (
 test('prompt keeps the rules the eval found missing', () => {
   const p = systemPrompt(s1, null);
   for (const re of [/never repeat your last answer/, /Say "aim for"/, /give the first step now/, /say "sample data"/, /assumes/]) assert.match(p, re);
+});
+
+test('raise_restock_request runs only after a clear yes in the seller words, and is marked demo', () => {
+  for (const said of ['no', 'maybe later', 'what will it cost', undefined]) {
+    const call = {};
+    const r = makeHandlers(s1, call, () => {}, { lastUser: () => said }).raise_restock_request();
+    assert.equal(r.executed, false, String(said));
+    assert.equal(call.actions, undefined);
+  }
+  const call = {};
+  const sent = [];
+  const h = makeHandlers(s1, call, (m) => sent.push(m), { lastUser: () => 'yes please do it' });
+  const r = h.raise_restock_request();
+  assert.equal(r.executed, true);
+  assert.equal(r.demo, true);
+  assert.match(r.note, /demo/i);
+  assert.equal(call.actions.length, 1);
+  assert.equal(call.actions[0].demo, true);
+  assert.equal(sent[0].t, 'action');
+  h.raise_restock_request();
+  assert.equal(call.actions.length, 1, 'no duplicate action');
+});
+
+test('outbound and follow-up modes put code-computed case numbers in the prompt', async () => {
+  const { simulate } = await import('./cases.js');
+  const out = systemPrompt(s1, null, { mode: 'outbound' });
+  assert.match(out, /MODE: OUTBOUND/);
+  assert.match(out, /₹68,000/);
+  assert.match(out, /₹37,500/);
+  assert.doesNotMatch(systemPrompt(s1, null), /MODE:/);
+  const { outcome } = simulate(s1, true);
+  const fu = systemPrompt(s1, null, { mode: 'followup', outcome });
+  assert.match(fu, /SIMULATED/);
+  assert.match(fu, /₹25,000/);
+  assert.match(fu, /Steel Lunch Box Set/);
+  const none = systemPrompt(s1, null, { mode: 'followup', outcome: simulate(s1, false).outcome });
+  assert.match(none, /No action was approved/);
 });

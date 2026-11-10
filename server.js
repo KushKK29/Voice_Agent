@@ -8,6 +8,8 @@ import { WebSocketServer } from 'ws';
 import { GoogleGenAI, Modality, StartSensitivity } from '@google/genai';
 import { MongoClient } from 'mongodb';
 import { TOOLS, systemPrompt, makeHandlers, detectEscalation } from './kam.js';
+import { queue } from './cases.js';
+import { ensureCases, touchCase, runSimulation, resetDemo } from './store.js';
 
 const { GEMINI_API_KEY, MONGODB_URI, PORT = 3000 } = process.env;
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-live';
@@ -33,6 +35,7 @@ const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 const MIME = { '.html': 'text/html', '.js': 'text/javascript' };
 const PUBLIC = resolve('public');
+const sameOrigin = (req) => { try { return !req.headers.origin || new URL(req.headers.origin).host === req.headers.host; } catch { return false; } };
 const json = (res, code, o) => res.writeHead(code, { 'content-type': 'application/json' }).end(JSON.stringify(o));
 const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -56,6 +59,29 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, await db.collection('sellers').find().toArray());
       } catch (e) {
         console.error('sellers failed', e.message);
+        return json(res, 500, { error: 'Service temporarily unavailable' });
+      }
+    }
+    if (pathname === '/api/queue') {
+      try {
+        const sellers = await db.collection('sellers').find().toArray();
+        const cases = await ensureCases(db, sellers);
+        const done = new Set(sellers.filter((s) => s.simulated).map((s) => s._id));
+        const rows = queue(sellers, cases).map((r) => ({ ...r, has_outcome: done.has(r.seller_id) }));
+        return json(res, 200, rows);
+      } catch (e) {
+        console.error('queue failed', e.message);
+        return json(res, 500, { error: 'Service temporarily unavailable' });
+      }
+    }
+    if (pathname === '/api/simulate' || pathname === '/api/reset') {
+      if (req.method !== 'POST' || !sameOrigin(req)) return json(res, 403, { error: 'POST from this site only' });
+      try {
+        if (pathname === '/api/reset') { await resetDemo(db); return json(res, 200, { ok: true }); }
+        const r = await runSimulation(db, new URL(req.url, 'http://x').searchParams.get('seller'));
+        return json(res, r.status, r.error ? { error: r.error } : { outcome: r.outcome });
+      } catch (e) {
+        console.error('simulate/reset failed', e.message);
         return json(res, 500, { error: 'Service temporarily unavailable' });
       }
     }
@@ -134,7 +160,8 @@ wss.on('connection', async (ws, req) => {
   });
 
   try {
-    id = new URL(req.url, 'http://x').searchParams.get('seller');
+    const params = new URL(req.url, 'http://x').searchParams;
+    id = params.get('seller');
     const [seller, lastDoc] = await Promise.all([
       db.collection('sellers').findOne({ _id: id }),
       db.collection('calls').findOne({ seller_id: id, action_plan: { $ne: null } }, { sort: { started_at: -1 } }),
@@ -145,7 +172,11 @@ wss.on('connection', async (ws, req) => {
     const last = fresh && Array.isArray(ap?.issues) && Array.isArray(ap?.actions) ? lastDoc : null;
 
     call.seller_id = id;
-    const handlers = makeHandlers(seller, call, send);
+    const mode = ['outbound', 'followup'].includes(params.get('mode')) ? params.get('mode') : null;
+    const outcome = mode === 'followup' ? await db.collection('outcomes').findOne({ _id: id }) : null;
+    call.mode = mode;
+    const lastUser = () => call.transcript.findLast((l) => l.role === 'user')?.text;
+    const handlers = makeHandlers(seller, call, send, { lastUser });
 
     let cur = null; // role of the transcript line being built
     const text = (role, chunk) => {
@@ -198,6 +229,10 @@ wss.on('connection', async (ws, req) => {
               log('tool failed', fc.name, e.message);
               output = { error: 'tool failed' };
             }
+            if (fc.name === 'raise_restock_request' && output.executed && !output.repeat) {
+              touchCase(db, id, 'inventory', 'in_progress', 'Restock request raised (demo), approved by the seller on a call.', 'seller')
+                .catch((e) => console.error('case update failed', e.message));
+            }
             return { id: fc.id, name: fc.name, response: { output } };
           });
           session.sendToolResponse({ functionResponses });
@@ -214,7 +249,7 @@ wss.on('connection', async (ws, req) => {
         model: MODEL,
         config: {
           responseModalities: [Modality.AUDIO],
-          systemInstruction: systemPrompt(seller, last),
+          systemInstruction: systemPrompt(seller, last, { mode, outcome }),
           tools: [{ functionDeclarations: TOOLS }],
           inputAudioTranscription: {},
           outputAudioTranscription: {},
@@ -245,7 +280,7 @@ wss.on('connection', async (ws, req) => {
     log('call started');
     limit = setTimeout(() => reject(1000, 'Call time limit reached'), MAX_CALL_SECONDS * 1000);
     send({ t: 'ready' });
-    session.sendRealtimeInput({ text: 'The call has just connected. Greet the seller now.' });
+    session.sendRealtimeInput({ text: mode ? 'The call has just connected. Open the call now exactly as the MODE section says.' : 'The call has just connected. Greet the seller now.' });
   } catch (e) {
     console.error('connection failed', e.message);
     reject(1011, 'Service temporarily unavailable');

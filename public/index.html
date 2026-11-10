@@ -72,6 +72,7 @@
     <h1>Saathi</h1>
     <p id="who"></p>
     <span class="grow"></span>
+    <a href="queue.html" style="color:var(--acc);font-size:.9rem">Attention queue</a>
     <span id="state" data-s="idle" role="status" aria-live="polite">idle</span>
     <p id="cost" aria-live="off"></p>
   </header>
@@ -107,6 +108,10 @@
       <section class="card" aria-label="Conversation">
         <h2>Conversation</h2>
         <div id="log" aria-live="polite"></div>
+      </section>
+      <section id="actions" class="card" hidden aria-label="Actions taken">
+        <h2>Actions taken (demo)</h2>
+        <ul id="actionList" style="margin:0;padding-left:18px"></ul>
       </section>
       <section id="plan" class="card" hidden aria-label="Action plan">
         <h2>Your action plan</h2>
